@@ -44,39 +44,45 @@ def main(argv):
                 if file.startswith("libva"):
                     print(os.path.join(root, file))
                     f = open(os.path.join(root, file), 'r')
-                    lines = f.readlines()
                     previous_timeline = 0
                     fps_counter = 1
                     acc_frame_width = 0
-                    for line in lines:
-                        # The format is [xxx][xxxx]yyyyyy
-                        x = line.split("[")
-                        # Length of the array == 3 is what we need
-                        if len(x) == 3:
-                            timeline = x[1].split("]")[0]
-                            data = x[2].split("]")[1]
-                            # Video type starts with --VAPictureXXX\n  
-                            if "--VAPicture" in data:
-                                video_type = data.split('--')[1].strip('\n')
-                            if "frame_width" in data:  
-                                # Ingore fraction
-                                current_timeline = int(timeline.split('.')[0])
-                                if previous_timeline != current_timeline:
-                                    # this is a new frame, we should reset the count
-                                    # and calcualate the FPS
-                                    previous_timeline = current_timeline  
-                                    csv_writer.writerow({"timeline": current_timeline, "FPS" : fps_counter, "Average resolution" : acc_frame_width/fps_counter, "Video Type": video_type})
-                                    
-                                    final_fps += fps_counter
-                                    final_frame_width += acc_frame_width/fps_counter
-                                    total_seconds += 1
-                                    # counter reset
-                                    fps_counter = 1
-                                    # accumlated frame width reset
-                                    acc_frame_width = int(data.split("=")[1])
-                                else:
-                                    fps_counter += 1
-                                    acc_frame_width += int(data.split("=")[1])
+                    while True:
+                        # Avoid running out of memory, read file by 8M chunk
+                        lines = f.readlines(8*1024*1024)
+                        if not lines:
+                            break
+
+                        for line in lines:
+                            # The format is [xxx][xxxx]yyyyyy
+                            x = line.split("[")
+                            # Length of the array == 3 is what we need
+                            if len(x) == 3:
+                                timeline = x[1].split("]")[0]
+                                data = x[2].split("]")[1]
+                                # Video type starts with --VAPictureXXX\n
+                                if "--VAPicture" in data:
+                                    video_type = data.split('--')[1].strip('\n')
+                                if "frame_width" in data:
+                                    # Ingore fraction
+                                    current_timeline = int(timeline.split('.')[0])
+                                    if previous_timeline != current_timeline:
+                                        # this is a new frame, we should reset the count
+                                        # and calcualate the FPS
+                                        previous_timeline = current_timeline
+                                        csv_writer.writerow({"timeline": current_timeline, "FPS" : fps_counter, "Average resolution" : acc_frame_width/fps_counter, "Video Type": video_type})
+                                        
+                                        final_fps += fps_counter
+                                        final_frame_width += acc_frame_width/fps_counter
+                                        total_seconds += 1
+                                        # counter reset
+                                        fps_counter = 1
+                                        # accumlated frame width reset
+                                        acc_frame_width = int(data.split("=")[1])
+                                    else:
+                                        fps_counter += 1
+                                        acc_frame_width += int(data.split("=")[1])
+                f.close()
         print ("Total seconds: ", total_seconds)
         print ("Average FPS: ", final_fps/total_seconds)
         print ("Average frame width: ", final_frame_width/total_seconds)
